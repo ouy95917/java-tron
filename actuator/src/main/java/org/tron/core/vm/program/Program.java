@@ -10,7 +10,9 @@ import static org.tron.common.math.Maths.addExact;
 import static org.tron.common.math.Maths.max;
 import static org.tron.common.math.Maths.min;
 import static org.tron.common.math.Maths.multiplyExact;
+import static org.tron.common.utils.ByteUtil.WORD_SIZE;
 import static org.tron.common.utils.ByteUtil.stripLeadingZeroes;
+import static org.tron.core.config.Parameter.ChainConstant.MAX_VOTE_NUMBER;
 import static org.tron.core.config.Parameter.ChainConstant.TRX_PRECISION;
 import static org.tron.protos.contract.Common.ResourceCode.BANDWIDTH;
 import static org.tron.protos.contract.Common.ResourceCode.ENERGY;
@@ -2265,6 +2267,27 @@ public class Program {
     increaseNonce();
     InternalTransaction internalTx = addInternalTx(null, owner, null, 0, null,
         "voteWitness", nonce, null);
+
+    // TODO: A new proposal should be used here, like allowTvmPrgue or some else
+    if (VMConfig.allowTvmCancun()) {
+      if (witnessArrayLength > MAX_VOTE_NUMBER || amountArrayLength > MAX_VOTE_NUMBER) {
+        logger.warn("TVM VoteWitness: the size of the witness array or amount array " +
+            "exceeds maxVoteNumber " + MAX_VOTE_NUMBER);
+        return false;
+      }
+
+      int witnessArrayEnd = addExact(witnessArrayOffset, WORD_SIZE * (witnessArrayLength + 1),
+          VMConfig.disableJavaLangMath());
+
+      int amountArrayEnd = addExact(amountArrayOffset, WORD_SIZE * (amountArrayLength + 1),
+          VMConfig.disableJavaLangMath());
+
+      if (witnessArrayEnd > getMemSize() || amountArrayEnd > getMemSize()) {
+        throw new BytecodeExecutionException(
+            "TVM VoteWitness: the end position of the witness array or amount array " +
+                "exceeds the current memory size " + getMemSize());
+      }
+    }
 
     if (memoryLoad(witnessArrayOffset).intValueSafe() != witnessArrayLength ||
         memoryLoad(amountArrayOffset).intValueSafe() != amountArrayLength) {
